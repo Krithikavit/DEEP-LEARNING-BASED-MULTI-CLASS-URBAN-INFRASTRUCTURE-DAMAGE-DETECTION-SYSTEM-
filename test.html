@@ -1,0 +1,1865 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>RoadSense — Smart Road Damage Monitoring</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
+
+<style>
+  :root{
+    --bg-0:#06090f; --bg-1:#0b111d; --bg-2:#111a2b; --bg-3:#1a2540;
+    --line:rgba(120,160,220,.12); --line-2:rgba(120,160,220,.22);
+    --ink:#dfe8fb; --ink-2:#8ea3c7; --ink-3:#596a8a;
+    --cyan:#00e5ff; --cyan-d:#0a8ea3;
+    --lime:#a6ff4b; --amber:#ffb547; --red:#ff3b5c; --violet:#b478ff;
+    --font-ui:'Sora',system-ui,sans-serif;
+    --font-mono:'JetBrains Mono',ui-monospace,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    font-family:var(--font-ui); color:var(--ink);
+    background:
+      radial-gradient(1200px 800px at 80% -10%, rgba(0,229,255,.08), transparent 60%),
+      radial-gradient(900px 700px at -10% 110%, rgba(180,120,255,.07), transparent 60%),
+      linear-gradient(180deg,#060a14 0%, #040711 100%);
+    overflow:hidden; letter-spacing:.01em;
+  }
+  .shell{
+    display:grid;
+    grid-template-columns:72px 1fr 380px;
+    grid-template-rows:56px 1fr;
+    height:100vh;
+  }
+  header.topbar{
+    grid-column:1/-1;
+    display:flex;align-items:center;
+    padding:0 20px;
+    border-bottom:1px solid var(--line);
+    background:rgba(6,10,18,.7); backdrop-filter:blur(12px);
+    position:relative;z-index:1000;
+  }
+  .brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;font-size:13px}
+  .brand .logo{
+    width:28px;height:28px;border-radius:7px;
+    background:conic-gradient(from 140deg at 50% 50%, var(--cyan), var(--violet), var(--amber), var(--cyan));
+    filter:saturate(1.2);
+    box-shadow:0 0 20px rgba(0,229,255,.4),inset 0 0 0 1px rgba(255,255,255,.15);
+    position:relative;
+  }
+  .brand .logo::after{
+    content:'';position:absolute;inset:4px;border-radius:4px;
+    background:#0b111d;border:1px solid rgba(255,255,255,.08);
+  }
+  .brand .logo::before{
+    content:'';position:absolute;left:50%;top:50%;
+    width:10px;height:10px;transform:translate(-50%,-50%) rotate(45deg);
+    background:var(--cyan);border-radius:2px;z-index:2;box-shadow:0 0 10px var(--cyan);
+  }
+  .brand b{color:var(--ink)}
+  .brand span{color:var(--ink-3);font-weight:500}
+  .topbar .spacer{flex:1}
+
+  .chip{
+    display:inline-flex;align-items:center;gap:8px;
+    padding:6px 11px;border-radius:999px;
+    font-family:var(--font-mono);font-size:11px;
+    border:1px solid var(--line-2);color:var(--ink-2);
+    background:rgba(17,26,43,.6);
+  }
+  .chip .dot{
+    width:7px;height:7px;border-radius:50%;
+    background:var(--lime);box-shadow:0 0 10px var(--lime);
+    animation:pulse 2s ease-in-out infinite;
+  }
+  .chip.err .dot{background:var(--red);box-shadow:0 0 10px var(--red)}
+  .chip.warn .dot{background:var(--amber);box-shadow:0 0 10px var(--amber)}
+  @keyframes pulse{50%{opacity:.35}}
+
+  .topbar .toolgroup{display:flex;gap:10px;align-items:center}
+
+  .btn{
+    padding:7px 13px;border-radius:8px;font-family:var(--font-ui);
+    font-size:12px;font-weight:500;letter-spacing:.04em;
+    border:1px solid var(--line-2);color:var(--ink);
+    background:rgba(26,37,64,.5);cursor:pointer;transition:all .15s ease;
+    display:inline-flex;align-items:center;gap:7px;
+  }
+  .btn:hover{border-color:var(--cyan);color:var(--cyan);box-shadow:0 0 0 3px rgba(0,229,255,.08)}
+  .btn.primary{
+    background:linear-gradient(180deg,rgba(0,229,255,.9),rgba(0,175,210,.9));
+    color:#041019;border-color:rgba(0,229,255,.4);
+    box-shadow:0 8px 30px -12px var(--cyan), inset 0 1px 0 rgba(255,255,255,.3);
+    font-weight:600;
+  }
+  .btn.primary:hover{filter:brightness(1.1)}
+  .btn.ghost{background:transparent}
+
+  aside.nav{
+    border-right:1px solid var(--line);
+    display:flex;flex-direction:column;align-items:center;
+    padding:14px 0;gap:6px;
+    background:rgba(8,12,22,.55);
+  }
+  .nav-item{
+    width:44px;height:44px;border-radius:10px;
+    display:grid;place-items:center;color:var(--ink-3);
+    cursor:pointer;position:relative;transition:all .15s;
+    border:1px solid transparent;
+  }
+  .nav-item:hover{color:var(--ink);background:rgba(26,37,64,.5)}
+  .nav-item.active{
+    color:var(--cyan);background:rgba(0,229,255,.08);
+    border-color:rgba(0,229,255,.25);
+    box-shadow:inset 0 0 20px rgba(0,229,255,.08);
+  }
+  .nav-item.active::before{
+    content:'';position:absolute;left:-14px;top:10px;bottom:10px;
+    width:3px;border-radius:3px;background:var(--cyan);box-shadow:0 0 10px var(--cyan);
+  }
+  .nav-item svg{width:18px;height:18px;stroke-width:1.7}
+  .nav-sep{height:1px;width:28px;background:var(--line);margin:8px 0}
+
+  main.map-panel{position:relative;overflow:hidden;border-right:1px solid var(--line)}
+  #map{position:absolute;inset:0;background:#0b111d}
+  .leaflet-container{background:#0b111d}
+  .leaflet-control-zoom{border:none!important;box-shadow:none!important}
+  .leaflet-control-zoom a{
+    background:rgba(11,17,29,.85)!important;color:var(--ink)!important;
+    border:1px solid var(--line-2)!important;font-family:var(--font-mono);
+  }
+  .leaflet-control-zoom a:hover{color:var(--cyan)!important;border-color:var(--cyan)!important}
+  .leaflet-bar{border-radius:8px;overflow:hidden}
+  .leaflet-draw-toolbar a{
+    background-color:rgba(11,17,29,.85)!important;
+    border:1px solid var(--line-2)!important;
+  }
+
+  .hud{position:absolute;z-index:500;pointer-events:none}
+  .hud .panel{pointer-events:auto}
+  .hud.tl{top:16px;left:16px}
+  .hud.tr{top:16px;right:16px}
+  .hud.bl{bottom:16px;left:16px;right:16px}
+
+  .coord-hud{
+    font-family:var(--font-mono);font-size:11px;color:var(--ink-2);
+    background:rgba(11,17,29,.75);backdrop-filter:blur(10px);
+    border:1px solid var(--line-2);border-radius:10px;
+    padding:10px 14px;display:flex;gap:18px;align-items:center;
+  }
+  .coord-hud b{color:var(--ink);font-weight:500}
+  .coord-hud .label{color:var(--ink-3);font-size:10px;text-transform:uppercase;letter-spacing:.1em}
+
+  .legend{
+    font-family:var(--font-mono);font-size:10.5px;
+    background:rgba(11,17,29,.75);backdrop-filter:blur(10px);
+    border:1px solid var(--line-2);border-radius:10px;
+    padding:10px 14px;display:flex;gap:16px;align-items:center;
+  }
+  .legend .sw{display:inline-flex;align-items:center;gap:6px;color:var(--ink-2)}
+  .legend i{width:10px;height:10px;border-radius:50%;display:inline-block}
+  .sw.n i{background:var(--lime);box-shadow:0 0 10px var(--lime)}
+  .sw.m i{background:var(--amber);box-shadow:0 0 10px var(--amber)}
+  .sw.s i{background:var(--red);box-shadow:0 0 10px var(--red)}
+
+  .mode-switch{
+    display:inline-flex;background:rgba(11,17,29,.75);
+    border:1px solid var(--line-2);border-radius:10px;
+    padding:3px;backdrop-filter:blur(10px);
+  }
+  .mode-switch button{
+    padding:7px 13px;border:none;background:transparent;color:var(--ink-3);
+    font-family:var(--font-mono);font-size:11px;cursor:pointer;border-radius:7px;
+    letter-spacing:.05em;
+  }
+  .mode-switch button.on{background:var(--cyan);color:#041019;font-weight:600}
+
+  .action-dock{
+    background:rgba(11,17,29,.82);backdrop-filter:blur(14px);
+    border:1px solid var(--line-2);border-radius:14px;
+    padding:10px 12px;display:flex;gap:8px;
+    box-shadow:0 20px 60px -20px rgba(0,0,0,.6);
+  }
+
+  .damage-marker{
+    width:22px;height:22px;border-radius:50%;
+    border:2px solid rgba(255,255,255,.6);
+    box-shadow:0 0 0 3px rgba(0,0,0,.35),0 0 20px currentColor;
+    transition:transform .15s;
+  }
+  .damage-marker:hover{transform:scale(1.15)}
+
+  section.side{
+    overflow-y:auto;overflow-x:hidden;
+    background:linear-gradient(180deg,rgba(8,12,22,.9),rgba(6,10,18,.95));
+    padding:18px;display:flex;flex-direction:column;gap:14px;
+    scrollbar-width:thin;scrollbar-color:var(--line-2) transparent;
+  }
+  section.side::-webkit-scrollbar{width:8px}
+  section.side::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:8px}
+
+  .card{
+    background:rgba(17,26,43,.55);border:1px solid var(--line);
+    border-radius:14px;padding:14px;position:relative;
+  }
+  .card h4{
+    margin:0 0 10px;font-size:10.5px;font-weight:500;
+    color:var(--ink-3);letter-spacing:.18em;text-transform:uppercase;
+    display:flex;align-items:center;justify-content:space-between;
+  }
+  .card h4 .pill{
+    font-family:var(--font-mono);font-size:10px;color:var(--ink-2);
+    background:rgba(0,0,0,.3);padding:3px 7px;border-radius:6px;letter-spacing:.05em;
+  }
+
+  .verdict{
+    position:relative;padding:20px 18px;border-radius:16px;
+    overflow:hidden;border:1px solid var(--line-2);
+    background:
+      radial-gradient(600px 200px at 100% 0%, rgba(255,255,255,.04), transparent 60%),
+      rgba(17,26,43,.7);
+  }
+  .verdict::before{
+    content:'';position:absolute;inset:0;pointer-events:none;
+    background:var(--verdict-glow,transparent);opacity:.55;filter:blur(30px);
+  }
+  .verdict .label{
+    font-family:var(--font-mono);font-size:10.5px;letter-spacing:.22em;
+    text-transform:uppercase;color:var(--ink-3);
+  }
+  .verdict .class-name{
+    font-size:28px;font-weight:700;letter-spacing:-.01em;margin:4px 0 8px;
+    color:var(--verdict-color,var(--ink));
+    text-shadow:0 0 30px var(--verdict-color,transparent);
+  }
+  .verdict .score{display:flex;align-items:baseline;gap:6px;font-family:var(--font-mono)}
+  .verdict .score .big{
+    font-size:52px;font-weight:700;line-height:1;
+    color:var(--verdict-color,var(--ink));letter-spacing:-.03em;
+  }
+  .verdict .score .pct{font-size:14px;color:var(--ink-2)}
+  .verdict .score .delta{margin-left:auto;font-family:var(--font-mono);font-size:11px;color:var(--ink-3)}
+  .verdict .bar{
+    height:4px;border-radius:2px;overflow:hidden;
+    background:rgba(255,255,255,.06);margin-top:14px;position:relative;
+  }
+  .verdict .bar > span{
+    position:absolute;left:0;top:0;bottom:0;
+    background:var(--verdict-color,var(--cyan));
+    box-shadow:0 0 12px var(--verdict-color,var(--cyan));
+    transition:width .8s cubic-bezier(.2,.8,.2,1);
+  }
+
+  .img-preview{
+    aspect-ratio:1;border-radius:10px;overflow:hidden;
+    background:#020509;position:relative;border:1px solid var(--line);
+  }
+  .img-preview img{width:100%;height:100%;object-fit:cover;display:block}
+  .img-preview .empty{
+    position:absolute;inset:0;display:grid;place-items:center;
+    color:var(--ink-3);font-family:var(--font-mono);font-size:11px;
+    text-align:center;padding:20px;
+  }
+  .img-tabs{
+    display:flex;gap:4px;margin-top:10px;
+    background:rgba(0,0,0,.25);border-radius:8px;padding:3px;
+  }
+  .img-tabs button{
+    flex:1;padding:6px 0;border:none;background:transparent;
+    color:var(--ink-3);cursor:pointer;border-radius:6px;
+    font-family:var(--font-mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;
+  }
+  .img-tabs button.on{background:rgba(0,229,255,.1);color:var(--cyan)}
+
+  .metrics{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .metric{
+    background:rgba(8,12,22,.5);border:1px solid var(--line);
+    border-radius:10px;padding:11px 12px;
+  }
+  .metric .k{font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-3)}
+  .metric .v{
+    font-family:var(--font-mono);font-size:20px;font-weight:500;
+    color:var(--ink);letter-spacing:-.01em;margin-top:3px;
+  }
+  .metric .u{color:var(--ink-3);font-size:10px;margin-left:2px}
+
+  .btn-row{display:flex;gap:8px;margin-top:4px}
+  .btn-row .btn{flex:1;justify-content:center}
+
+  .history-list{display:flex;flex-direction:column;gap:6px}
+  .hist-item{
+    display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;
+    padding:9px 10px;border-radius:9px;
+    background:rgba(8,12,22,.5);
+    border:1px solid transparent;cursor:pointer;transition:all .12s;
+  }
+  .hist-item:hover{border-color:var(--line-2);background:rgba(17,26,43,.6)}
+  .hist-item .dot{width:9px;height:9px;border-radius:50%;box-shadow:0 0 8px currentColor}
+  .hist-item .meta{overflow:hidden}
+  .hist-item .co{
+    font-family:var(--font-mono);font-size:11.5px;color:var(--ink);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .hist-item .tm{font-size:10px;color:var(--ink-3);margin-top:1px;font-family:var(--font-mono)}
+  .hist-item .rdi{font-family:var(--font-mono);font-size:13px;font-weight:500}
+
+  .summary-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .summary-strip .cell{
+    background:rgba(8,12,22,.5);border:1px solid var(--line);
+    border-radius:9px;padding:9px 10px;
+  }
+  .summary-strip .cell .k{font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--ink-3)}
+  .summary-strip .cell .v{font-family:var(--font-mono);font-size:19px;font-weight:600;margin-top:2px}
+
+  /* land-cover rows */
+  .lc-list{display:flex;flex-direction:column;gap:6px}
+  .lc-row{
+    display:grid;grid-template-columns:12px 100px 1fr 50px;gap:8px;align-items:center;
+    font-family:var(--font-mono);font-size:11px;color:var(--ink-2);
+  }
+  .lc-dot{width:10px;height:10px;border-radius:2px;display:block}
+  .lc-label{text-transform:capitalize}
+  .lc-bar{
+    height:6px;background:rgba(255,255,255,.05);border-radius:3px;
+    overflow:hidden;position:relative;
+  }
+  .lc-bar > span{
+    position:absolute;left:0;top:0;bottom:0;
+    transition:width .6s cubic-bezier(.2,.8,.2,1);
+  }
+  .lc-pct{text-align:right;color:var(--ink);font-weight:500}
+
+  /* probability bars */
+  .prob-row{
+    display:grid;grid-template-columns:110px 1fr 50px;gap:10px;align-items:center;
+    font-family:var(--font-mono);font-size:11px;color:var(--ink-2);margin-bottom:8px;
+  }
+  .prob-label{display:flex;align-items:center;gap:7px;font-size:10px;letter-spacing:.1em;font-weight:600}
+  .dot-sm{width:9px;height:9px;border-radius:50%;display:inline-block;box-shadow:0 0 8px currentColor}
+  .prob-bar{
+    height:8px;background:rgba(255,255,255,.05);border-radius:4px;
+    overflow:hidden;position:relative;
+  }
+  .prob-bar > span{
+    position:absolute;left:0;top:0;bottom:0;
+    transition:width .7s cubic-bezier(.2,.8,.2,1);
+    box-shadow:0 0 8px currentColor;
+  }
+  .prob-pct{text-align:right;color:var(--ink);font-weight:600;font-size:12px}
+
+  /* similar photos */
+  .sim-row{
+    display:grid;grid-template-columns:64px 1fr 54px;gap:10px;align-items:center;
+    padding:8px;border-radius:9px;cursor:pointer;
+    border:1px solid var(--line);background:rgba(8,12,22,.5);margin-bottom:7px;
+    transition:all .15s;
+  }
+  .sim-row:hover{background:rgba(17,26,43,.8);border-color:var(--cyan)}
+  .sim-row img{width:64px;height:48px;object-fit:cover;border-radius:6px;display:block}
+  .sim-row .meta{display:flex;flex-direction:column;gap:2px;min-width:0}
+  .sim-row .meta .loc{font-size:11px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sim-row .meta .cls{font-size:10px;letter-spacing:.1em;font-family:var(--font-mono);font-weight:600}
+  .sim-row .sim-pct{
+    font-family:var(--font-mono);font-size:14px;font-weight:700;text-align:right;
+    color:var(--cyan);
+  }
+
+  /* RDD bounding-box detection list */
+  .rdd-row{
+    display:grid;grid-template-columns:14px 1fr 35px 1fr;gap:10px;align-items:center;
+    padding:7px 4px;border-bottom:1px solid var(--line);
+    font-family:var(--font-mono);font-size:11px;color:var(--ink-2);
+  }
+  .rdd-row:last-child{border-bottom:none}
+  .rdd-dot{width:10px;height:10px;border-radius:50%;display:block}
+  .rdd-cls{font-weight:600;letter-spacing:.03em;font-size:11.5px}
+  .rdd-count{text-align:right;color:var(--ink);font-weight:700;font-size:12.5px}
+  .rdd-confs{text-align:right;color:var(--ink-3);font-size:10px}
+
+  .empty-panel{padding:60px 24px;text-align:center;color:var(--ink-3)}
+  .empty-panel .icon{
+    width:64px;height:64px;margin:0 auto 14px;border-radius:16px;
+    border:1px solid var(--line-2);display:grid;place-items:center;
+    background:rgba(17,26,43,.5);
+  }
+  .empty-panel h3{margin:0 0 6px;font-size:15px;color:var(--ink);font-weight:600}
+  .empty-panel p{margin:0;font-size:12.5px;line-height:1.55}
+
+  .toast-dock{
+    position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
+    z-index:2000;display:flex;flex-direction:column;gap:8px;
+  }
+  .toast{
+    background:rgba(17,26,43,.95);border:1px solid var(--line-2);
+    backdrop-filter:blur(12px);padding:10px 16px;border-radius:10px;
+    font-size:12px;color:var(--ink);font-family:var(--font-mono);
+    animation:toast-in .25s ease;
+    box-shadow:0 20px 60px -10px rgba(0,0,0,.6);
+    display:flex;align-items:center;gap:10px;
+  }
+  .toast.err{border-color:rgba(255,59,92,.5);color:var(--red)}
+  .toast.ok{border-color:rgba(166,255,75,.5);color:var(--lime)}
+  @keyframes toast-in{from{opacity:0;transform:translateY(8px)}to{opacity:1}}
+
+  .loader{
+    display:inline-block;width:12px;height:12px;
+    border:2px solid rgba(255,255,255,.1);
+    border-top-color:var(--cyan);border-radius:50%;
+    animation:spin .8s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  .img-preview.analyzing::after{
+    content:'';position:absolute;left:0;right:0;top:0;height:3px;
+    background:linear-gradient(90deg,transparent,var(--cyan),transparent);
+    box-shadow:0 0 20px var(--cyan);animation:scan 1.6s ease-in-out infinite;
+  }
+  @keyframes scan{0%{top:0}50%{top:calc(100% - 3px)}100%{top:0}}
+
+  .grid-bg{
+    position:absolute;inset:0;pointer-events:none;
+    background-image:
+      linear-gradient(rgba(120,160,220,.04) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(120,160,220,.04) 1px,transparent 1px);
+    background-size:40px 40px;
+    mask-image:radial-gradient(ellipse at center, black 40%, transparent 85%);
+  }
+
+  @media (max-width:1200px){
+    .shell{grid-template-columns:72px 1fr}
+    section.side{display:none}
+  }
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo"></div>
+      <div>
+        <b>RoadSense</b><br>
+        <span style="font-size:9.5px">Pavement Damage · Land Cover</span>
+      </div>
+    </div>
+    <div class="spacer"></div>
+    <div class="toolgroup">
+      <div id="status-chip" class="chip"><span class="dot"></span><span id="status-txt">Initialising...</span></div>
+      <div class="chip"><span id="clock" style="color:var(--ink)">--:--:--</span></div>
+      <div class="mode-switch" id="analysis-mode-switch" style="margin:0 4px">
+        <button class="on" data-am="road">ROAD</button>
+        <button data-am="building">BUILDING</button>
+      </div>
+      <button class="btn" id="btn-campus" title="Load VIT Vellore campus damage map">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6l9-3 9 3v12l-9 3-9-3zM12 3v18M3 6l9 3 9-3"/></svg>
+        VIT Campus
+      </button>
+      <button class="btn ghost" id="btn-upload" title="Upload photo for analysis">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 16V4m0 0l-4 4m4-4l4 4"/><path d="M4 16v4h16v-4"/></svg>
+        <span id="btn-upload-label">Upload Pavement</span>
+      </button>
+      <input type="file" id="upload-input" accept="image/*" hidden>
+    </div>
+  </header>
+
+  <aside class="nav">
+    <div class="nav-item active" title="Dashboard">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+    </div>
+    <div class="nav-item" title="Live Map">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 21s-7-7.5-7-12a7 7 0 1114 0c0 4.5-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/></svg>
+    </div>
+    <div class="nav-item" title="Analysis">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 3v18h18"/><path d="M7 14l4-4 4 3 5-6"/></svg>
+    </div>
+    <div class="nav-item" title="Reports">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M9 14h6M9 18h6M9 10h2"/></svg>
+    </div>
+    <div class="nav-sep"></div>
+    <div class="nav-item" title="History">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 12a9 9 0 109-9 9.75 9.75 0 00-6.7 2.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/></svg>
+    </div>
+  </aside>
+
+  <main class="map-panel">
+    <div id="map"></div>
+    <div class="grid-bg"></div>
+
+    <div class="hud tl">
+      <div class="panel" style="display:flex;flex-direction:column;gap:10px">
+        <div class="coord-hud">
+          <span><span class="label">LAT</span> <b id="hud-lat">-</b></span>
+          <span><span class="label">LON</span> <b id="hud-lon">-</b></span>
+          <span><span class="label">ZOOM</span> <b id="hud-zoom">-</b></span>
+        </div>
+        <div class="mode-switch" id="provider-switch">
+          <button class="on" data-p="auto">Auto</button>
+          <button data-p="google">Google</button>
+          <button data-p="sentinel">Sentinel</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="hud tr">
+      <div class="panel legend">
+        <span class="sw" style="color:#a6ff4b"><i style="background:#a6ff4b;box-shadow:0 0 10px #a6ff4b"></i> Normal</span>
+        <span class="sw" style="color:#c8e860"><i style="background:#c8e860;box-shadow:0 0 10px #c8e860"></i> Minor</span>
+        <span class="sw" style="color:#ffb547"><i style="background:#ffb547;box-shadow:0 0 10px #ffb547"></i> Moderate</span>
+        <span class="sw" style="color:#ff3b5c"><i style="background:#ff3b5c;box-shadow:0 0 10px #ff3b5c"></i> Severe</span>
+      </div>
+    </div>
+
+    <div class="hud bl" style="display:flex;justify-content:center;align-items:flex-end">
+      <div class="panel action-dock">
+        <button class="btn" id="btn-mode-point">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg>
+          Click to Analyse Point
+        </button>
+        <button class="btn" id="btn-mode-region">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" stroke-dasharray="4 3"/></svg>
+          Draw Region
+        </button>
+        <button class="btn primary" id="btn-analyze">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2v4M12 18v4M2 12h4M18 12h4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8"/></svg>
+          Analyse <span id="btn-loader" style="display:none"><span class="loader"></span></span>
+        </button>
+        <button class="btn" id="btn-clear">Clear</button>
+      </div>
+    </div>
+  </main>
+
+  <section class="side">
+
+    <div class="card">
+      <h4>Session Summary <span class="pill" id="pill-session">0 analyses</span></h4>
+      <div class="summary-strip">
+        <div class="cell"><div class="k">Roads</div><div class="v" id="sum-road" style="color:var(--cyan)">0</div></div>
+        <div class="cell"><div class="k">Buildings</div><div class="v" id="sum-bld" style="color:var(--red)">0</div></div>
+        <div class="cell"><div class="k">Vegetation</div><div class="v" id="sum-veg" style="color:var(--lime)">0</div></div>
+        <div class="cell"><div class="k">Pavement Scans</div><div class="v" id="sum-pav" style="color:var(--amber)">0</div></div>
+      </div>
+    </div>
+
+    <div id="empty-state" class="empty-panel card">
+      <div class="icon">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="1.6"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      </div>
+      <h3>Two modes</h3>
+      <p style="text-align:left">
+        <b style="color:var(--cyan)">Satellite mode</b> (map click / draw region) classifies land cover — road, building, vegetation, bare ground — using colour and texture heuristics. <i>It does not detect damage.</i>
+        <br><br>
+        <b style="color:var(--amber)">Pavement mode</b> (Upload Pavement button) runs your trained <b>STCrackNet</b> on close-up road photos — this is where real crack detection happens (F1 0.72).
+      </p>
+    </div>
+
+    <div id="result-view" style="display:none;flex-direction:column;gap:14px">
+
+      <div class="verdict" id="verdict">
+        <div class="label">Damage classification</div>
+        <div class="class-name" id="v-class">-</div>
+        <div class="score">
+          <span class="big" id="v-rdi">0</span>
+          <span class="pct">/100 RDI</span>
+          <span class="delta" id="v-loc">-</span>
+        </div>
+        <div class="bar"><span id="v-bar" style="width:0%"></span></div>
+      </div>
+
+      <div class="card" id="confidence-card" style="display:none">
+        <h4>Prediction Confidence <span class="pill" id="conf-model">VIT classifier</span></h4>
+        <div class="prob-row" id="prob-row-safe" style="display:none">
+          <div class="prob-label"><span class="dot-sm" style="background:#a6ff4b"></span>SAFE</div>
+          <div class="prob-bar"><span id="prob-bar-safe" style="width:0%;background:#a6ff4b"></span></div>
+          <div class="prob-pct" id="prob-pct-safe">-%</div>
+        </div>
+        <div class="prob-row" id="prob-row-damaged">
+          <div class="prob-label"><span class="dot-sm" style="background:#ffb547"></span>DAMAGED</div>
+          <div class="prob-bar"><span id="prob-bar-damaged" style="width:0%;background:#ffb547"></span></div>
+          <div class="prob-pct" id="prob-pct-damaged">-%</div>
+        </div>
+        <div class="prob-row" id="prob-row-severe">
+          <div class="prob-label"><span class="dot-sm" style="background:#ff3b5c"></span>SEVERE</div>
+          <div class="prob-bar"><span id="prob-bar-severe" style="width:0%;background:#ff3b5c"></span></div>
+          <div class="prob-pct" id="prob-pct-severe">-%</div>
+        </div>
+        <div id="tta-hint" style="font-size:10.5px;color:var(--ink-3);margin-top:10px;line-height:1.5"></div>
+      </div>
+
+      <div class="card" id="road-features-card" style="display:none">
+        <h4>Road Feature Analysis <span class="pill">Visual scoring</span></h4>
+        <div style="font-size:10.5px;color:var(--ink-3);margin-bottom:10px;line-height:1.5">
+          Five interpretable features measured on road pixels in the satellite tile.
+          Higher = better. The damage classification combines these with weights.
+        </div>
+        <div class="prob-row">
+          <div class="prob-label"><span class="dot-sm" style="background:#c8e860"></span>Linearity</div>
+          <div class="prob-bar"><span id="rf-bar-linearity" style="width:0%;background:#c8e860"></span></div>
+          <div class="prob-pct" id="rf-pct-linearity">-</div>
+        </div>
+        <div class="prob-row">
+          <div class="prob-label"><span class="dot-sm" style="background:#7bc8ff"></span>Uniformity</div>
+          <div class="prob-bar"><span id="rf-bar-uniformity" style="width:0%;background:#7bc8ff"></span></div>
+          <div class="prob-pct" id="rf-pct-uniformity">-</div>
+        </div>
+        <div class="prob-row">
+          <div class="prob-label"><span class="dot-sm" style="background:#ffb547"></span>Smoothness</div>
+          <div class="prob-bar"><span id="rf-bar-smoothness" style="width:0%;background:#ffb547"></span></div>
+          <div class="prob-pct" id="rf-pct-smoothness">-</div>
+        </div>
+        <div class="prob-row">
+          <div class="prob-label"><span class="dot-sm" style="background:#a6ff4b"></span>Clean spots</div>
+          <div class="prob-bar"><span id="rf-bar-clean_spots" style="width:0%;background:#a6ff4b"></span></div>
+          <div class="prob-pct" id="rf-pct-clean_spots">-</div>
+        </div>
+        <div class="prob-row">
+          <div class="prob-label"><span class="dot-sm" style="background:#d6a4ff"></span>Edge regularity</div>
+          <div class="prob-bar"><span id="rf-bar-edge_regular" style="width:0%;background:#d6a4ff"></span></div>
+          <div class="prob-pct" id="rf-pct-edge_regular">-</div>
+        </div>
+        <div id="rf-summary" style="font-size:10.5px;color:var(--ink-3);margin-top:10px;line-height:1.5"></div>
+      </div>
+
+      <div class="card" id="similar-card" style="display:none">
+        <h4>Most Similar Labeled Photos <span class="pill">Retrieval</span></h4>
+        <div style="font-size:10.5px;color:var(--ink-3);margin-bottom:10px;line-height:1.5">
+          Nearest neighbors from our 20 labeled VIT photos using the classifier's feature embeddings. Higher similarity = more visually similar.
+        </div>
+        <div id="similar-list"></div>
+      </div>
+
+      <div class="card">
+        <h4 id="preview-head">Satellite Land Cover <span class="pill" id="v-model">-</span></h4>
+        <div class="img-preview" id="img-preview">
+          <div class="empty">no image</div>
+        </div>
+        <div class="img-tabs" id="img-tabs">
+          <button class="on" data-k="input">Satellite</button>
+          <button data-k="land">Land Cover</button>
+        </div>
+      </div>
+
+      <div class="card" id="damage-card">
+        <h4>Damage Metrics <span class="pill">STCrackNet</span></h4>
+        <div class="metrics">
+          <div class="metric"><div class="k">Crack Coverage</div><div class="v" id="m-cov">-<span class="u">% of road</span></div></div>
+          <div class="metric"><div class="k">Crack Density</div><div class="v" id="m-den">-<span class="u">% of tile</span></div></div>
+          <div class="metric"><div class="k">Mean Width</div><div class="v" id="m-wid">-<span class="u">px</span></div></div>
+          <div class="metric"><div class="k">Connectivity</div><div class="v" id="m-con">-</div></div>
+          <div class="metric"><div class="k">Road Area</div><div class="v" id="m-road">-<span class="u">% tile</span></div></div>
+          <div class="metric"><div class="k">Severity</div><div class="v" id="m-sev">-</div></div>
+        </div>
+      </div>
+
+      <div class="card" id="rdd-card" style="display:none">
+        <h4>Detected Damage <span class="pill" id="rdd-summary" style="color:var(--cyan)">—</span></h4>
+        <div id="rdd-list"></div>
+        <div style="font-size:10.5px;color:var(--ink-3);margin-top:10px;line-height:1.5">
+          Bounding boxes from our YOLOv8 trained on RDD2022 India (2,656 images). Classes: longitudinal crack, transverse crack, alligator crack, pothole.
+        </div>
+      </div>
+
+      <div class="card" id="building-card" style="display:none">
+        <h4>Building Condition <span class="pill" id="bld-summary" style="color:var(--cyan)">—</span></h4>
+        <div id="bld-list"></div>
+        <div style="font-size:10.5px;color:var(--ink-3);margin-top:10px;line-height:1.5">
+          Bounding boxes from YOLOv8m trained on xBD (disaster satellite imagery). Classes: normal_building, abandoned_building.
+        </div>
+      </div>
+
+      <div class="card" id="landcover-card" style="display:none">
+        <h4>Land Cover <span class="pill" id="lc-dom" style="color:var(--cyan)">—</span></h4>
+        <div id="lc-rows" class="lc-list"></div>
+        <div style="font-size:10.5px;color:var(--ink-3);margin-top:10px;line-height:1.45">
+          Fallback land-cover classifier (YOLO unavailable). For real damage detection, ensure the RDD YOLO weights are present.
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn" id="btn-report">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+          Export Report
+        </button>
+        <button class="btn" id="btn-rerun">Re-analyse</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h4>Recent Analyses <span class="pill" id="hist-count">0</span></h4>
+      <div class="history-list" id="history-list">
+        <div style="color:var(--ink-3);font-size:12px;text-align:center;padding:10px">
+          No history yet
+        </div>
+      </div>
+    </div>
+
+  </section>
+</div>
+
+<div class="toast-dock" id="toast-dock"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+
+<script>
+const API = window.location.origin.replace(/\/$/, '');
+
+const state = {
+  provider: 'auto',
+  mode: 'point',
+  analysisMode: 'road',  // 'road' | 'building' — global analysis mode toggle
+  markers: [],
+  currentResult: null,
+  currentImgTab: 'input',
+  analyses: [],
+};
+
+const coverHex = (cover) => ({
+  'road':        '#00e5ff',   // cyan — honest, roads are highlighted
+  'building':    '#ff3b5c',   // red
+  'vegetation':  '#a6ff4b',   // green
+  'bare ground': '#ffb547',   // amber/tan
+  'unknown':     '#596a8a',   // grey
+}[cover] || '#596a8a');
+
+const coverLabel = (cover) => (cover || 'unknown').toUpperCase();
+
+// Legacy — pavement (STCrackNet) still uses these
+const sevHex = (cls) => ({
+  SAFE:'#a6ff4b', NORMAL:'#a6ff4b', MINOR:'#c8e860',
+  DAMAGED:'#ffb547', MODERATE:'#ffb547', SEVERE:'#ff3b5c',
+}[cls] || '#596a8a');
+
+const sevLabel = (cls) => ({
+  SAFE:'SAFE', NORMAL:'NORMAL', MINOR:'MINOR',
+  DAMAGED:'DAMAGED', MODERATE:'MODERATE', SEVERE:'SEVERE',
+}[cls] || cls || '—');
+
+// Building-mode verdict colors & labels
+const bldHex = (v) => ({
+  NORMAL: '#a6ff4b',
+  MIXED: '#ffb547',
+  ABANDONED: '#ff3b5c',
+  NO_BUILDINGS: '#596a8a',
+  MODEL_NOT_LOADED: '#596a8a',
+  INFERENCE_FAILED: '#ff3b5c',
+}[v] || '#596a8a');
+
+const bldLabel = (v) => ({
+  NORMAL: 'NORMAL',
+  MIXED: 'MIXED',
+  ABANDONED: 'ABANDONED',
+  NO_BUILDINGS: 'NO BUILDINGS',
+  MODEL_NOT_LOADED: 'MODEL OFFLINE',
+  INFERENCE_FAILED: 'INFERENCE ERROR',
+}[v] || v || '—');
+
+const coverColor = (c) => coverHex(c);
+
+const map = L.map('map', {
+  center: [12.9719, 79.1589],
+  zoom: 16, zoomControl: true, attributionControl: false,
+});
+
+L.tileLayer(
+  'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+  { maxZoom: 20 }
+).addTo(map);
+
+L.tileLayer(
+  'https://services.arcgisonline.com/arcgis/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+  { maxZoom: 20, opacity: .55 }
+).addTo(map);
+
+const drawnItems = new L.FeatureGroup().addTo(map);
+const drawControl = new L.Control.Draw({
+  edit: { featureGroup: drawnItems, remove: true },
+  draw: {
+    polyline: false, polygon: false, circle: false,
+    circlemarker: false, marker: false,
+    rectangle: { shapeOptions: { color:'#00e5ff', weight:2, fillOpacity:.1 } },
+  },
+});
+
+let activeDrawHandler = null;
+
+function setMode(mode){
+  state.mode = mode;
+  document.getElementById('btn-mode-point').classList.toggle('primary', mode==='point');
+  document.getElementById('btn-mode-region').classList.toggle('primary', mode==='region');
+
+  // Always add the draw control so the toolbar is visible
+  try { map.addControl(drawControl); } catch(e) {}
+
+  // Cancel any in-progress drawing
+  if (activeDrawHandler) {
+    try { activeDrawHandler.disable(); } catch(e) {}
+    activeDrawHandler = null;
+  }
+
+  // Visual cue on the map body
+  const mapEl = document.getElementById('map');
+  mapEl.style.cursor = mode === 'region' ? 'crosshair' : '';
+
+  if (mode === 'region') {
+    // Auto-activate the rectangle drawing tool so the user can immediately drag
+    activeDrawHandler = new L.Draw.Rectangle(map, drawControl.options.draw.rectangle);
+    activeDrawHandler.enable();
+    toast('Drag a rectangle on the map to select a region', 'info');
+  }
+}
+setMode('point');
+
+document.getElementById('btn-mode-point').onclick  = () => setMode('point');
+document.getElementById('btn-mode-region').onclick = () => setMode('region');
+
+map.on('click', async (e) => {
+  if(state.mode !== 'point') return;
+  const { lat, lng } = e.latlng;
+  await runPointAnalysis(lat, lng);
+});
+
+map.on(L.Draw.Event.CREATED, async (e) => {
+  drawnItems.clearLayers();
+  drawnItems.addLayer(e.layer);
+  const bounds = e.layer.getBounds();
+  const center = bounds.getCenter();
+  const NE = bounds.getNorthEast();
+  const half = center.distanceTo(L.latLng(NE.lat, center.lng));
+  activeDrawHandler = null;
+  document.getElementById('map').style.cursor = '';
+  // Switch back to point mode after draw completes
+  setMode('point');
+  await runRegionAnalysis(center.lat, center.lng, Math.min(half, 2000));
+});
+
+map.on('mousemove', (e) => {
+  document.getElementById('hud-lat').textContent = e.latlng.lat.toFixed(5);
+  document.getElementById('hud-lon').textContent = e.latlng.lng.toFixed(5);
+});
+map.on('zoomend', () => {
+  document.getElementById('hud-zoom').textContent = map.getZoom();
+});
+document.getElementById('hud-zoom').textContent = map.getZoom();
+
+async function apiPost(path, body){
+  const r = await fetch(API+path, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(body),
+  });
+  if(!r.ok){
+    const err = await r.json().catch(()=>({detail:r.statusText}));
+    throw new Error(err.detail || r.statusText);
+  }
+  return r.json();
+}
+
+async function apiGet(path){
+  const r = await fetch(API+path);
+  if(!r.ok) throw new Error(r.statusText);
+  return r.json();
+}
+
+async function checkHealth(){
+  try{
+    const h = await apiGet('/health');
+    const el = document.getElementById('status-chip');
+    const tx = document.getElementById('status-txt');
+    el.classList.remove('err','warn');
+    if(h.stcracknet_loaded && (h.providers.google || h.providers.sentinel)){
+      tx.textContent = 'Online · '+h.device.toUpperCase();
+    } else if(h.providers.google || h.providers.sentinel){
+      el.classList.add('warn');
+      tx.textContent = 'STCrackNet offline';
+    } else {
+      el.classList.add('warn');
+      tx.textContent = 'Configure providers';
+    }
+  } catch(e){
+    const el = document.getElementById('status-chip');
+    el.classList.add('err');
+    document.getElementById('status-txt').textContent = 'Backend offline';
+  }
+}
+checkHealth();
+setInterval(checkHealth, 15000);
+
+setInterval(()=>{
+  const d = new Date();
+  document.getElementById('clock').textContent =
+    d.toLocaleTimeString('en-GB',{hour12:false});
+}, 1000);
+
+async function runPointAnalysis(lat, lon){
+  showLoader(true);
+  toast(`Analysing ${lat.toFixed(4)}, ${lon.toFixed(4)}...`, 'info');
+  setPreviewAnalyzing(true);
+  try{
+    const endpoint = state.analysisMode === 'building'
+      ? '/api/analyze-building'
+      : '/api/analyze';
+    const res = await apiPost(endpoint, {
+      lat, lon, provider: state.provider,
+      zoom: Math.min(map.getZoom()+3, 20),
+    });
+    addMarker(res);
+    renderResult(res);
+    pushHistory(res);
+    if (res.mode === 'building_detection') {
+      const v = res.metrics.verdict || 'NO_BUILDINGS';
+      const n = res.metrics.n_detections || 0;
+      const na = res.metrics.n_abandoned || 0;
+      toast(`${v} · ${n} building${n !== 1 ? 's' : ''}${na ? ` (${na} abandoned)` : ''}`, n > 0 ? 'ok' : 'info');
+    } else if (res.mode === 'rdd_detection') {
+      const n = res.metrics.n_detections || 0;
+      const cls = res.metrics.classification || 'NORMAL';
+      toast(`${cls} · ${n} detection${n !== 1 ? 's' : ''}`, n > 0 ? 'ok' : 'info');
+    } else if (res.metrics.assessment_method === 'not_a_road') {
+      toast(`Not a road — ${coverLabel(res.metrics.dominant_cover)} dominates this tile`, 'info');
+    } else if (res.metrics.classification && res.metrics.probabilities) {
+      const conf = Math.round((res.metrics.confidence || 0) * 100);
+      toast(`${res.metrics.classification} road · ${conf}% confidence`, 'ok');
+    } else {
+      toast(`Dominant cover: ${coverLabel(res.metrics.dominant_cover)}`, 'ok');
+    }
+  } catch(e){
+    toast(e.message || 'Analysis failed', 'err');
+  } finally {
+    showLoader(false);
+    setPreviewAnalyzing(false);
+  }
+}
+
+async function runRegionAnalysis(lat, lon, half){
+  showLoader(true);
+  toast(`Scanning region (up to ~30s)...`, 'info');
+  setPreviewAnalyzing(true);
+  try{
+    const res = await apiPost('/api/analyze-region', {
+      lat, lon, half_side_m: half, grid_n: 5,
+      provider: state.provider, zoom: Math.min(map.getZoom()+3, 20),
+    });
+    res.segments.forEach(s=>{
+      addMarker(s);
+      pushHistory(s);
+    });
+    if(res.segments.length){
+      // Focus on the tile with most detections (if RDD) or first road tile (land-cover fallback)
+      let focus;
+      if (res.segments[0].mode === 'rdd_detection') {
+        focus = res.segments.reduce((best, s) =>
+          (s.metrics.n_detections || 0) > (best.metrics.n_detections || 0) ? s : best,
+          res.segments[0]);
+      } else {
+        const roads = res.segments.filter(s => s.metrics.dominant_cover === 'road');
+        focus = roads.length ? roads[0] : res.segments[0];
+      }
+      renderResult(focus);
+    }
+    if (res.summary.by_classification) {
+      const c = res.summary.by_classification;
+      toast(
+        `${res.summary.total} tiles · ${c.SEVERE||0} severe, ${c.MODERATE||0} moderate, ${c.MINOR||0} minor, ${c.NORMAL||0} normal · ${res.summary.total_detections||0} total boxes`,
+        'ok',
+      );
+    } else if (res.summary.by_cover) {
+      const c = res.summary.by_cover;
+      toast(
+        `${res.summary.total} tiles · ${c.road||0} road, ${c.building||0} building, ${c.vegetation||0} vegetation, ${c['bare ground']||0} bare`,
+        'ok',
+      );
+    }
+  } catch(e){
+    toast(e.message || 'Region scan failed', 'err');
+  } finally {
+    showLoader(false);
+    setPreviewAnalyzing(false);
+  }
+}
+
+function addMarker(res){
+  const isPavement = res.mode === 'pavement';
+  const isRdd = res.mode === 'rdd_detection';
+  const isBuilding = res.mode === 'building_detection';
+  let color, label;
+  if (isPavement) {
+    color = sevHex(res.metrics.classification);
+    label = sevLabel(res.metrics.classification);
+  } else if (isRdd) {
+    color = sevHex(res.metrics.classification);
+    label = res.metrics.classification || 'NORMAL';
+  } else if (isBuilding) {
+    color = bldHex(res.metrics.verdict);
+    label = bldLabel(res.metrics.verdict);
+  } else {
+    color = coverHex(res.metrics.dominant_cover);
+    label = coverLabel(res.metrics.dominant_cover);
+  }
+
+  const icon = L.divIcon({
+    className: '',
+    html: `<div class="damage-marker" style="color:${color};background:${color}"></div>`,
+    iconSize: [22,22], iconAnchor:[11,11],
+  });
+  const m = L.marker([res.lat, res.lon], { icon }).addTo(map);
+
+  let body;
+  if (isPavement) {
+    body = `<div style="color:#dfe8fb;font-size:20px;font-weight:700;margin:4px 0">RDI ${res.metrics.rdi}</div>
+       <div style="color:#8ea3c7">STCrackNet · ${(res.metrics.crack_coverage*100).toFixed(2)}% coverage</div>`;
+  } else if (isRdd) {
+    const n = res.metrics.n_detections || 0;
+    const maxConf = ((res.metrics.max_conf || 0) * 100).toFixed(0);
+    const dom = res.metrics.dominant_class || '—';
+    body = `<div style="color:#dfe8fb;font-size:20px;font-weight:700;margin:4px 0">RDI ${res.metrics.rdi}</div>
+       <div style="color:#8ea3c7">RDD YOLO · ${n} detection${n !== 1 ? 's' : ''}${n > 0 ? ` · max ${maxConf}%` : ''}</div>
+       <div style="color:#8ea3c7">Dominant: ${dom}</div>`;
+  } else if (isBuilding) {
+    const n = res.metrics.n_detections || 0;
+    const na = res.metrics.n_abandoned || 0;
+    const nn = res.metrics.n_normal || 0;
+    body = `<div style="color:#dfe8fb;font-size:18px;font-weight:700;margin:4px 0">${bldLabel(res.metrics.verdict)}</div>
+       <div style="color:#8ea3c7">YOLOv8m · ${n} building${n !== 1 ? 's' : ''}</div>
+       <div style="color:#8ea3c7">${nn} normal · ${na} abandoned</div>`;
+  } else {
+    body = `<div style="color:#dfe8fb;font-size:14px;margin:4px 0">Land cover sample</div>
+       <div style="color:#8ea3c7">Road: ${(res.metrics.road_coverage*100).toFixed(0)}% · Building: ${(res.metrics.building_coverage*100).toFixed(0)}%</div>`;
+  }
+
+  m.bindPopup(`
+    <div style="font-family:var(--font-mono);font-size:11px;min-width:170px">
+      <div style="color:${color};font-weight:700;letter-spacing:.1em">${label}</div>
+      ${body}
+      <div style="color:#8ea3c7;margin-top:4px">${res.lat.toFixed(5)}, ${res.lon.toFixed(5)}</div>
+    </div>
+  `);
+  m.on('click', () => renderResult(res));
+  state.markers.push(m);
+}
+
+document.getElementById('btn-clear').onclick = () => {
+  state.markers.forEach(m => map.removeLayer(m));
+  state.markers = [];
+  drawnItems.clearLayers();
+  toast('Map cleared', 'info');
+};
+
+function renderResult(res){
+  state.currentResult = res;
+  document.getElementById('empty-state').style.display = 'none';
+  document.getElementById('result-view').style.display = 'flex';
+
+  const m = res.metrics;
+  const isPavement = res.mode === 'pavement';
+  const isRdd = res.mode === 'rdd_detection';
+  const isBuilding = res.mode === 'building_detection';
+
+  // Verdict card — differs by mode
+  const v = document.getElementById('verdict');
+  const labelEl = document.getElementById('v-class');
+  const rdiEl   = document.getElementById('v-rdi');
+  const pctEl   = v.querySelector('.score .pct');
+  const barEl   = document.getElementById('v-bar');
+
+  if (isBuilding) {
+    // Building Analysis verdict
+    const verdict = m.verdict || 'NO_BUILDINGS';
+    const color = bldHex(verdict);
+    v.style.setProperty('--verdict-color', color);
+    v.style.setProperty('--verdict-glow', `radial-gradient(400px 120px at 80% 0%, ${color}22, transparent 70%)`);
+    v.querySelector('.label').textContent = 'Building condition (YOLOv8m · xBD)';
+    labelEl.textContent = bldLabel(verdict);
+    const pct = Math.round((m.abandoned_ratio || 0) * 100);
+    rdiEl.textContent = pct;
+    pctEl.textContent = '% abandoned';
+    pctEl.style.display = '';
+    rdiEl.style.display = '';
+    requestAnimationFrame(()=>{ barEl.style.width = `${pct}%`; });
+  } else if (isPavement) {
+    const color = sevHex(m.classification);
+    v.style.setProperty('--verdict-color', color);
+    v.style.setProperty('--verdict-glow', `radial-gradient(400px 120px at 80% 0%, ${color}22, transparent 70%)`);
+    v.querySelector('.label').textContent = 'Damage classification (STCrackNet)';
+    labelEl.textContent = sevLabel(m.classification);
+    animateNumber('v-rdi', m.rdi, 0);
+    pctEl.textContent = '/100 RDI';
+    pctEl.style.display = '';
+    rdiEl.style.display = '';
+    requestAnimationFrame(()=>{ barEl.style.width = `${m.rdi}%`; });
+  } else if (isRdd) {
+    const color = sevHex(m.classification);
+    v.style.setProperty('--verdict-color', color);
+    v.style.setProperty('--verdict-glow', `radial-gradient(400px 120px at 80% 0%, ${color}22, transparent 70%)`);
+    v.querySelector('.label').textContent = 'Road damage detection (RDD YOLO)';
+    labelEl.textContent = m.classification || 'NORMAL';
+    animateNumber('v-rdi', m.rdi, 0);
+    pctEl.textContent = '/100 RDI';
+    pctEl.style.display = '';
+    rdiEl.style.display = '';
+    requestAnimationFrame(()=>{ barEl.style.width = `${m.rdi}%`; });
+  } else if (m.classification && m.probabilities) {
+    // Satellite tile with road assessment — show SAFE/DAMAGED/SEVERE
+    const color = sevHex(m.classification);
+    v.style.setProperty('--verdict-color', color);
+    v.style.setProperty('--verdict-glow', `radial-gradient(400px 120px at 80% 0%, ${color}22, transparent 70%)`);
+    v.querySelector('.label').textContent = 'Road condition (visual analysis)';
+    labelEl.textContent = sevLabel(m.classification);
+    animateNumber('v-rdi', m.rdi, 0);
+    pctEl.textContent = '/100 RDI';
+    pctEl.style.display = '';
+    rdiEl.style.display = '';
+    requestAnimationFrame(()=>{ barEl.style.width = `${m.rdi}%`; });
+  } else if (m.assessment_method === 'not_a_road') {
+    // Not enough road in the tile — don't make a damage claim
+    const color = coverHex(m.dominant_cover);
+    v.style.setProperty('--verdict-color', color);
+    v.style.setProperty('--verdict-glow', `radial-gradient(400px 120px at 80% 0%, ${color}22, transparent 70%)`);
+    v.querySelector('.label').textContent = 'Not a road — no surface assessment';
+    labelEl.textContent = coverLabel(m.dominant_cover).toUpperCase();
+    const pct = Math.round((m[m.dominant_cover === 'bare ground' ? 'bare_coverage' : m.dominant_cover + '_coverage'] || 0) * 100);
+    rdiEl.textContent = pct;
+    pctEl.textContent = '% of tile';
+    pctEl.style.display = '';
+    rdiEl.style.display = '';
+    requestAnimationFrame(()=>{ barEl.style.width = `${pct}%`; });
+  } else {
+    const color = coverHex(m.dominant_cover);
+    v.style.setProperty('--verdict-color', color);
+    v.style.setProperty('--verdict-glow', `radial-gradient(400px 120px at 80% 0%, ${color}22, transparent 70%)`);
+    v.querySelector('.label').textContent = 'Dominant land cover';
+    labelEl.textContent = coverLabel(m.dominant_cover);
+    const pct = Math.round((m[m.dominant_cover === 'bare ground' ? 'bare_coverage' : m.dominant_cover + '_coverage'] || 0) * 100);
+    rdiEl.textContent = pct;
+    pctEl.textContent = '% of tile';
+    pctEl.style.display = '';
+    rdiEl.style.display = '';
+    requestAnimationFrame(()=>{ barEl.style.width = `${pct}%`; });
+  }
+
+  const locEl = document.getElementById('v-loc');
+  if (res.location) {
+    locEl.textContent = `${res.location} · ${res.lat.toFixed(4)}°, ${res.lon.toFixed(4)}°`;
+  } else {
+    locEl.textContent = `${res.lat.toFixed(4)}°, ${res.lon.toFixed(4)}°`;
+  }
+  document.getElementById('v-model').textContent = res.model || res.mode;
+
+  // Show or hide damage-metrics card depending on mode
+  const damageCard = document.getElementById('damage-card');
+  if (damageCard) damageCard.style.display = isPavement ? 'block' : 'none';
+
+  if (isPavement) {
+    document.getElementById('m-cov').innerHTML = `${(m.crack_coverage*100).toFixed(2)}<span class="u">% of road</span>`;
+    document.getElementById('m-den').innerHTML = `${(m.crack_density*100).toFixed(2)}<span class="u">% of tile</span>`;
+    document.getElementById('m-wid').innerHTML = `${m.mean_width_px}<span class="u">px</span>`;
+    document.getElementById('m-con').innerHTML = `${m.connectivity.toFixed(3)}`;
+    document.getElementById('m-road').innerHTML = `${(m.road_coverage*100).toFixed(1)}<span class="u">%</span>`;
+    document.getElementById('m-sev').innerHTML = `${(m.severity_score*100).toFixed(1)}<span class="u">%</span>`;
+  }
+
+  // Probability bars — shown whenever the VIT classifier produced a result
+  const confCard = document.getElementById('confidence-card');
+  if (!isBuilding && m.probabilities && (m.probabilities.DAMAGED !== undefined || m.probabilities.SEVERE !== undefined || m.probabilities.SAFE !== undefined)) {
+    confCard.style.display = 'block';
+    const probs = m.probabilities;
+    const safe = (probs.SAFE ?? 0) * 100;
+    const dmg  = (probs.DAMAGED ?? 0) * 100;
+    const sev  = (probs.SEVERE ?? 0) * 100;
+
+    // Show/hide SAFE row depending on whether it's in the probabilities
+    const safeRow = document.getElementById('prob-row-safe');
+    if (probs.SAFE !== undefined) {
+      safeRow.style.display = '';
+      document.getElementById('prob-bar-safe').style.width = `${safe.toFixed(1)}%`;
+      document.getElementById('prob-pct-safe').textContent = `${safe.toFixed(0)}%`;
+    } else {
+      safeRow.style.display = 'none';
+    }
+
+    document.getElementById('prob-bar-damaged').style.width  = `${dmg.toFixed(1)}%`;
+    document.getElementById('prob-bar-severe').style.width   = `${sev.toFixed(1)}%`;
+    document.getElementById('prob-pct-damaged').textContent  = `${dmg.toFixed(0)}%`;
+    document.getElementById('prob-pct-severe').textContent   = `${sev.toFixed(0)}%`;
+
+    // Pill label reflects the method used
+    const pillEl = document.getElementById('conf-model');
+    if (pillEl) {
+      pillEl.textContent = (m.assessment_method === 'visual_feature_density')
+        ? 'Visual analysis'
+        : 'VIT classifier';
+    }
+
+    // Hint text about confidence + TTA
+    const hintEl = document.getElementById('tta-hint');
+    const conf = m.confidence || Math.max(probs.SAFE ?? 0, probs.DAMAGED ?? 0, probs.SEVERE ?? 0);
+    const disagr = m.tta_disagreement || 0;
+    let confLabel, confColor;
+    if (conf > 0.75) { confLabel = 'High confidence'; confColor = '#a6ff4b'; }
+    else if (conf > 0.60) { confLabel = 'Moderate confidence'; confColor = '#ffb547'; }
+    else { confLabel = 'Low confidence — borderline case'; confColor = '#ff3b5c'; }
+
+    let hint = `<span style="color:${confColor};font-weight:600">${confLabel}</span> (${(conf*100).toFixed(0)}%)`;
+    if (disagr > 0) {
+      hint += ` · TTA σ = ${disagr.toFixed(3)}`;
+      if (disagr > 0.12) {
+        hint += ` <span style="color:${confColor}">· views disagreed</span>`;
+      }
+    }
+    if (m.assessment_method === 'visual_feature_density' && m.crack_density_on_road !== undefined) {
+      hint += ` · crack feature density ${(m.crack_density_on_road*100).toFixed(2)}%`;
+    }
+    hintEl.innerHTML = hint;
+  } else {
+    confCard.style.display = 'none';
+  }
+
+  // Road feature breakdown card — only on satellite mode with 5-feature analysis
+  const rfCard = document.getElementById('road-features-card');
+  if (!isBuilding && m.road_features && m.assessment_method === 'visual_feature_analysis') {
+    rfCard.style.display = 'block';
+    const f = m.road_features;
+    const features = [
+      ['linearity',     'Long straight lines detected'],
+      ['uniformity',    'Color uniformity of asphalt'],
+      ['smoothness',    'Texture smoothness'],
+      ['clean_spots',   'Absence of dark spots'],
+      ['edge_regular',  'Regularity of edge patterns'],
+    ];
+    for (const [key, _label] of features) {
+      const val = f[key] ?? 0;
+      const pct = val * 100;
+      const barEl = document.getElementById(`rf-bar-${key}`);
+      const pctEl = document.getElementById(`rf-pct-${key}`);
+      if (barEl) barEl.style.width = `${pct.toFixed(1)}%`;
+      if (pctEl) pctEl.textContent = val.toFixed(2);
+    }
+    // Summary sentence: pick the lowest feature as the "why" explanation
+    let worst = null, worstScore = 1.0;
+    for (const [key] of features) {
+      if (f[key] < worstScore) { worstScore = f[key]; worst = key; }
+    }
+    const whyText = {
+      linearity:     'few long straight segments (broken edges)',
+      uniformity:    'patchy asphalt color (possible repairs/potholes)',
+      smoothness:    'rough surface texture (possible cracking)',
+      clean_spots:   'dark blobs detected (possible potholes)',
+      edge_regular:  'many irregular edges (possible cracks)',
+    };
+    const ds = m.damage_score ?? 0;
+    const explain = worstScore < 0.60
+      ? `Lowest feature: <b>${worst.replace('_', ' ')}</b> (${worstScore.toFixed(2)}) — ${whyText[worst]}.`
+      : `All features healthy.`;
+    document.getElementById('rf-summary').innerHTML =
+      `Overall damage score: <b>${(ds*100).toFixed(0)}%</b>. ${explain}`;
+  } else {
+    rfCard.style.display = 'none';
+  }
+
+  // Similar photos card — only shown on uploads with retrieval results
+  const simCard = document.getElementById('similar-card');
+  if (res.similar_photos && res.similar_photos.length) {
+    simCard.style.display = 'block';
+    renderSimilarPhotos(res.similar_photos);
+  } else {
+    simCard.style.display = 'none';
+  }
+
+  // RDD detection list — shown for rdd_detection mode, AND for pavement uploads that have rdd results
+  const rddCard = document.getElementById('rdd-card');
+  const rddData = isRdd ? m : (m.rdd || res.rdd);
+  if (rddCard) {
+    if (!isBuilding && rddData && rddData.detections) {
+      rddCard.style.display = 'block';
+      renderRddDetections(rddData);
+    } else {
+      rddCard.style.display = 'none';
+    }
+  }
+
+  // Building detection card — shown for building_detection mode
+  const bldCard = document.getElementById('building-card');
+  if (bldCard) {
+    if (isBuilding && m.detections) {
+      bldCard.style.display = 'block';
+      renderBuildingDetections(m);
+    } else {
+      bldCard.style.display = 'none';
+    }
+  }
+
+  // Land-cover card — only for satellite fallback (no YOLO, no pavement, no building)
+  const lcCard = document.getElementById('landcover-card');
+  if (lcCard) {
+    const showLc = !isPavement && !isRdd && !isBuilding && m.dominant_cover;
+    lcCard.style.display = showLc ? 'block' : 'none';
+    if (showLc) renderLandCover(m);
+  }
+
+  // Image tabs
+  rebuildImageTabs(res);
+  swapImage(state.currentImgTab);
+}
+
+function renderRddDetections(rdd) {
+  const listEl = document.getElementById('rdd-list');
+  const summaryEl = document.getElementById('rdd-summary');
+
+  if (!rdd.detections || rdd.detections.length === 0) {
+    listEl.innerHTML = `<div style="padding:14px;color:var(--ink-3);text-align:center;font-size:11px">No damage detected at confidence ≥ 20%</div>`;
+    summaryEl.textContent = `0 detections`;
+    return;
+  }
+
+  summaryEl.textContent = `${rdd.n_detections || rdd.detections.length} detections · max conf ${((rdd.max_conf||0)*100).toFixed(0)}%`;
+
+  const rddColors = {
+    "Longitudinal Crack": "#ffd250",
+    "Transverse Crack":   "#64d2f0",
+    "Alligator Crack":    "#ff963c",
+    "Pothole":            "#ff5078"
+  };
+
+  // Group by class
+  const byClass = {};
+  for (const d of rdd.detections) {
+    if (!byClass[d.class_name]) byClass[d.class_name] = [];
+    byClass[d.class_name].push(d);
+  }
+
+  listEl.innerHTML = Object.entries(byClass).map(([cls, items]) => {
+    const color = rddColors[cls] || "#888";
+    const confs = items.map(d => (d.conf*100).toFixed(0) + '%').join(', ');
+    return `
+      <div class="rdd-row">
+        <span class="rdd-dot" style="background:${color};box-shadow:0 0 8px ${color}"></span>
+        <div class="rdd-cls" style="color:${color}">${cls}</div>
+        <div class="rdd-count">×${items.length}</div>
+        <div class="rdd-confs">${confs}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderBuildingDetections(m) {
+  const listEl = document.getElementById('bld-list');
+  const summaryEl = document.getElementById('bld-summary');
+  const dets = m.detections || [];
+  const nNorm = m.n_normal || 0;
+  const nAb = m.n_abandoned || 0;
+
+  if (dets.length === 0) {
+    listEl.innerHTML = `<div style="padding:14px;color:var(--ink-3);text-align:center;font-size:11px">No buildings detected at confidence ≥ 25%</div>`;
+    summaryEl.textContent = '0 buildings';
+    return;
+  }
+
+  summaryEl.textContent = `${dets.length} building${dets.length !== 1 ? 's' : ''} · ${nAb} abandoned`;
+
+  const bldColors = {
+    "normal_building":    "#a6ff4b",
+    "abandoned_building": "#ff3b5c",
+  };
+  const bldNames = {
+    "normal_building":    "Normal",
+    "abandoned_building": "Abandoned",
+  };
+
+  // Group by class
+  const byClass = {};
+  for (const d of dets) {
+    if (!byClass[d.class_name]) byClass[d.class_name] = [];
+    byClass[d.class_name].push(d);
+  }
+
+  listEl.innerHTML = Object.entries(byClass).map(([cls, items]) => {
+    const color = bldColors[cls] || "#888";
+    const displayName = bldNames[cls] || cls;
+    const confs = items.map(d => (d.conf*100).toFixed(0) + '%').join(', ');
+    return `
+      <div class="rdd-row">
+        <span class="rdd-dot" style="background:${color};box-shadow:0 0 8px ${color}"></span>
+        <div class="rdd-cls" style="color:${color}">${displayName}</div>
+        <div class="rdd-count">×${items.length}</div>
+        <div class="rdd-confs">${confs}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderSimilarPhotos(matches){
+  const list = document.getElementById('similar-list');
+  list.innerHTML = matches.map(m => {
+    const color = sevHex(m.class_name);
+    const simPct = (m.similarity * 100).toFixed(0);
+    return `
+      <div class="sim-row" data-photo="${m.photo_id}">
+        <img src="${m.image_url || ''}" alt="${m.photo_id}" onerror="this.style.display='none'">
+        <div class="meta">
+          <span class="loc">${m.location || m.photo_id}</span>
+          <span class="cls" style="color:${color}">${m.class_name || '?'} · RDI ${m.rdi || '?'}</span>
+        </div>
+        <div class="sim-pct">${simPct}%</div>
+      </div>`;
+  }).join('');
+
+  // Clicking a similar photo loads it in the main view
+  list.querySelectorAll('.sim-row').forEach(el => {
+    el.onclick = async () => {
+      const pid = el.dataset.photo;
+      try {
+        const r = await apiGet(`/api/campus/${pid}`);
+        renderResult(r);
+        if (r.lat && r.lon) map.flyTo([r.lat, r.lon], 18);
+      } catch(e) {
+        toast('Could not load photo', 'err');
+      }
+    };
+  });
+}
+
+function rebuildImageTabs(res){
+  const tabs = document.getElementById('img-tabs');
+  const isPavement = res.mode === 'pavement';
+  const isRdd = res.mode === 'rdd_detection';
+  const isBuilding = res.mode === 'building_detection';
+  const hasRddOverlay = res.image_urls && res.image_urls.rdd_overlay;
+
+  let spec;
+  if (isPavement && hasRddOverlay) {
+    // Upload: both STCrackNet and YOLO results available
+    spec = [['input','Input'], ['overlay','STCrackNet'], ['rdd_overlay','RDD YOLO'], ['mask','Mask']];
+  } else if (isPavement) {
+    spec = [['input','Input'], ['overlay','Cracks'], ['mask','Mask']];
+  } else if (isRdd) {
+    spec = [['input','Tile'], ['overlay','YOLO Boxes']];
+  } else if (isBuilding) {
+    spec = [['input','Image'], ['overlay','Building Boxes']];
+  } else {
+    spec = [['input','Satellite'], ['land','Land Cover']];
+  }
+
+  tabs.innerHTML = spec.map(([k,l], i) =>
+    `<button ${i===0?'class="on"':''} data-k="${k}">${l}</button>`
+  ).join('');
+
+  // Reset active tab when switching modes
+  if (!spec.some(([k]) => k === state.currentImgTab)) {
+    state.currentImgTab = spec[0][0];
+  }
+
+  tabs.querySelectorAll('button').forEach(b=>{
+    b.onclick = () => swapImage(b.dataset.k);
+    b.classList.toggle('on', b.dataset.k === state.currentImgTab);
+  });
+}
+
+function renderLandCover(m){
+  const dom = m.dominant_cover || 'unknown';
+  document.getElementById('lc-dom').textContent = coverLabel(dom);
+  document.getElementById('lc-dom').style.color = coverHex(dom);
+
+  const classes = ['road','building','vegetation','bare ground','unknown'];
+  const covMap = {
+    'road':        m.road_coverage,
+    'building':    m.building_coverage,
+    'vegetation':  m.vegetation_coverage,
+    'bare ground': m.bare_coverage,
+    'unknown':     Math.max(0, 1 -
+      (m.road_coverage||0) - (m.building_coverage||0) -
+      (m.vegetation_coverage||0) - (m.bare_coverage||0)),
+  };
+  let rows = classes.map(c => {
+    const pct = (covMap[c] || 0) * 100;
+    return `
+      <div class="lc-row">
+        <span class="lc-dot" style="background:${coverHex(c)}"></span>
+        <span class="lc-label">${c}</span>
+        <span class="lc-bar"><span style="width:${pct.toFixed(1)}%;background:${coverHex(c)}"></span></span>
+        <span class="lc-pct">${pct.toFixed(1)}%</span>
+      </div>
+    `;
+  }).join('');
+
+  // If the tile has enough road AND severity classifier ran, show the road condition
+  if (m.severity_classification) {
+    const sevColor = sevHex(m.severity_classification);
+    const conf = (m.severity_confidence || 0) * 100;
+    const rdi = m.severity_rdi || 0;
+    rows += `
+      <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--line)">
+        <div style="font-size:9.5px;letter-spacing:.18em;color:var(--ink-3);text-transform:uppercase;margin-bottom:6px">
+          Road condition (if tile has ≥15% road)
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div style="color:${sevColor};font-family:var(--font-mono);font-weight:700;font-size:13px;letter-spacing:.08em">
+            ${m.severity_classification}
+          </div>
+          <div style="font-family:var(--font-mono);color:var(--ink);font-size:13px">
+            RDI ${rdi} · ${conf.toFixed(0)}% conf
+          </div>
+        </div>
+      </div>
+    `;
+  }
+  document.getElementById('lc-rows').innerHTML = rows;
+}
+
+function swapImage(tab){
+  state.currentImgTab = tab;
+  const res = state.currentResult;
+  if(!res) return;
+  const preview = document.getElementById('img-preview');
+  const url = res.image_urls && res.image_urls[tab];
+  preview.innerHTML = url
+    ? `<img src="${API}${url}" alt="${tab}">`
+    : `<div class="empty">${tab} not available in this mode</div>`;
+  document.querySelectorAll('#img-tabs button').forEach(b=>{
+    b.classList.toggle('on', b.dataset.k === tab);
+  });
+}
+
+document.querySelectorAll('#img-tabs button').forEach(b=>{
+  b.onclick = ()=> swapImage(b.dataset.k);
+});
+
+document.getElementById('btn-rerun').onclick = () => {
+  if(state.currentResult)
+    runPointAnalysis(state.currentResult.lat, state.currentResult.lon);
+};
+
+document.getElementById('btn-report').onclick = () => exportReport();
+
+function pushHistory(res){
+  state.analyses.unshift(res);
+  state.analyses = state.analyses.slice(0, 100);
+  renderHistory();
+  renderSummary();
+}
+
+function renderHistory(){
+  const list = document.getElementById('history-list');
+  const items = state.analyses.slice(0, 12);
+  document.getElementById('hist-count').textContent = state.analyses.length;
+  if(!items.length){
+    list.innerHTML = '<div style="color:var(--ink-3);font-size:12px;text-align:center;padding:10px">No history yet</div>';
+    return;
+  }
+  list.innerHTML = items.map((r,i)=>{
+    const isPav = r.mode === 'pavement';
+    const color = isPav ? sevHex(r.metrics.classification)
+                        : coverHex(r.metrics.dominant_cover);
+    const label = isPav ? sevLabel(r.metrics.classification)
+                        : coverLabel(r.metrics.dominant_cover);
+    const right = isPav ? r.metrics.rdi : (r.metrics.dominant_cover || '').slice(0,3).toUpperCase();
+    const ago = timeAgo(r.timestamp ? r.timestamp*1000 : Date.now());
+    return `
+      <div class="hist-item" data-i="${i}">
+        <div class="dot" style="color:${color};background:${color}"></div>
+        <div class="meta">
+          <div class="co">${r.lat.toFixed(4)}, ${r.lon.toFixed(4)}</div>
+          <div class="tm">${ago} · ${label}</div>
+        </div>
+        <div class="rdi" style="color:${color}">${right}</div>
+      </div>
+    `;
+  }).join('');
+  list.querySelectorAll('.hist-item').forEach(el=>{
+    el.onclick = () => {
+      const r = items[parseInt(el.dataset.i)];
+      if (r.lat !== 0 || r.lon !== 0)
+        map.setView([r.lat, r.lon], Math.max(map.getZoom(), 17));
+      renderResult(r);
+    };
+  });
+}
+
+function renderSummary(){
+  const total = state.analyses.length;
+  const byCover = {road:0, building:0, vegetation:0, 'bare ground':0, unknown:0};
+  let pavement = 0;
+  state.analyses.forEach(r => {
+    if (r.mode === 'pavement') pavement++;
+    else byCover[r.metrics.dominant_cover || 'unknown']++;
+  });
+  document.getElementById('sum-road').textContent = byCover.road;
+  document.getElementById('sum-bld').textContent  = byCover.building;
+  document.getElementById('sum-veg').textContent  = byCover.vegetation;
+  document.getElementById('sum-pav').textContent  = pavement;
+  document.getElementById('pill-session').textContent =
+    `${total} analysis${total===1?'':'es'}`;
+}
+
+function timeAgo(ms){
+  const s = Math.max(1, (Date.now()-ms)/1000 | 0);
+  if(s<60)  return `${s}s ago`;
+  if(s<3600) return `${s/60|0}m ago`;
+  if(s<86400) return `${s/3600|0}h ago`;
+  return `${s/86400|0}d ago`;
+}
+
+document.getElementById('btn-campus').onclick = loadCampus;
+
+async function loadCampus(){
+  showLoader(true);
+  toast('Loading VIT Vellore campus damage map...', 'info');
+  try{
+    const data = await apiGet('/api/campus');
+    if (!data.analyzed) {
+      toast('No campus photos analysed (check backend logs).', 'err');
+      return;
+    }
+
+    // Clear existing markers
+    state.markers.forEach(m => map.removeLayer(m));
+    state.markers = [];
+
+    // Center map on campus
+    if (data.center) {
+      map.setView([data.center.lat, data.center.lon], data.default_zoom || 17);
+    }
+
+    // Pin each photo with a damage-coloured marker
+    data.photos.forEach(p => {
+      const res = {
+        id: p.id,
+        lat: p.lat,
+        lon: p.lon,
+        mode: 'pavement',
+        model: 'STCrackNet',
+        metrics: p.metrics,
+        image_urls: p.image_urls,
+        location: p.location,
+        timestamp: Date.now() / 1000,
+      };
+      addCampusMarker(res);
+      state.analyses.unshift(res);
+    });
+
+    renderHistory();
+    renderSummary();
+
+    // Show the worst photo's details in the side panel
+    const sorted = data.photos.slice().sort(
+      (a, b) => b.metrics.rdi - a.metrics.rdi
+    );
+    if (sorted.length) {
+      const worst = sorted[0];
+      renderResult({
+        lat: worst.lat, lon: worst.lon,
+        mode: 'pavement', model: 'STCrackNet',
+        metrics: worst.metrics, image_urls: worst.image_urls,
+        location: worst.location,
+      });
+    }
+
+    toast(
+      `${data.analyzed}/${data.total_photos} VIT photos loaded - worst: RDI ${sorted[0].metrics.rdi.toFixed(0)}`,
+      'ok',
+    );
+  } catch(e){
+    toast(e.message || 'Campus load failed', 'err');
+  } finally {
+    showLoader(false);
+  }
+}
+
+function addCampusMarker(res){
+  const color = sevHex(res.metrics.classification);
+  const icon = L.divIcon({
+    className: '',
+    html: `<div class="damage-marker" style="color:${color};background:${color}"></div>`,
+    iconSize: [22, 22], iconAnchor: [11, 11],
+  });
+  const m = L.marker([res.lat, res.lon], { icon }).addTo(map);
+
+  m.bindPopup(`
+    <div style="font-family:var(--font-mono);font-size:11px;min-width:200px">
+      <div style="color:${color};font-weight:700;letter-spacing:.1em">${sevLabel(res.metrics.classification)}</div>
+      <div style="color:#dfe8fb;font-size:18px;font-weight:700;margin:4px 0">RDI ${res.metrics.rdi}</div>
+      <div style="color:#8ea3c7;font-family:var(--font-ui);font-size:12px;margin-top:4px">
+        &#128205; ${res.location}
+      </div>
+      <div style="color:#8ea3c7;font-size:10px;margin-top:2px">
+        ${res.lat.toFixed(5)}, ${res.lon.toFixed(5)}
+      </div>
+    </div>
+  `);
+  m.on('click', () => renderResult(res));
+  state.markers.push(m);
+}
+
+document.getElementById('btn-upload').onclick = () =>
+  document.getElementById('upload-input').click();
+
+document.getElementById('upload-input').onchange = async (e) => {
+  const file = e.target.files[0];
+  if(!file) return;
+  const fd = new FormData();
+  fd.append('file', file);
+  showLoader(true);
+  setPreviewAnalyzing(true);
+
+  const isBuilding = state.analysisMode === 'building';
+  const endpoint = isBuilding ? '/api/analyze-building-upload' : '/api/analyze-upload';
+  const modelLabel = isBuilding ? 'abandoned-building detector' : 'STCrackNet';
+  toast(`Running ${modelLabel} on uploaded image...`, 'info');
+
+  try{
+    const r = await fetch(API+endpoint, {method:'POST', body:fd});
+    if(!r.ok){const j=await r.json().catch(()=>({}));throw new Error(j.detail||r.statusText);}
+    const res = await r.json();
+    res.lat = map.getCenter().lat; res.lon = map.getCenter().lng;
+    renderResult(res);
+    pushHistory(res);
+    if (isBuilding) {
+      const v = res.metrics.verdict || 'NO_BUILDINGS';
+      const n = res.metrics.n_detections || 0;
+      toast(`${v} · ${n} building${n !== 1 ? 's' : ''} detected`, n > 0 ? 'ok' : 'info');
+    } else {
+      toast(`STCrackNet · ${res.metrics.classification} · RDI ${res.metrics.rdi}`, 'ok');
+    }
+  } catch(e){
+    toast(e.message, 'err');
+  } finally {
+    showLoader(false);
+    setPreviewAnalyzing(false);
+    e.target.value = '';
+  }
+};
+
+function exportReport(){
+  if(!state.analyses.length){ toast('Nothing to report yet','err'); return; }
+  const blob = new Blob(
+    [JSON.stringify({
+      generated_at: new Date().toISOString(),
+      total_analyses: state.analyses.length,
+      analyses: state.analyses,
+    }, null, 2)],
+    { type: 'application/json' }
+  );
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `roadsense-report-${Date.now()}.json`;
+  a.click();
+  toast('Report downloaded','ok');
+}
+
+function showLoader(on){
+  document.getElementById('btn-loader').style.display = on ? 'inline-flex' : 'none';
+  document.getElementById('btn-analyze').disabled = on;
+}
+
+function setPreviewAnalyzing(on){
+  document.getElementById('img-preview').classList.toggle('analyzing', on);
+}
+
+function animateNumber(id, target, decimals=0){
+  const el = document.getElementById(id);
+  const start = parseFloat(el.textContent) || 0;
+  const t0 = performance.now();
+  const dur = 700;
+  const step = (t) => {
+    const p = Math.min(1, (t-t0)/dur);
+    const eased = 1 - Math.pow(1-p, 3);
+    el.textContent = (start + (target-start)*eased).toFixed(decimals);
+    if(p<1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
+function toast(msg, kind='info'){
+  const t = document.createElement('div');
+  t.className = 'toast '+(kind==='err'?'err':kind==='ok'?'ok':'');
+  t.innerHTML = kind==='info'
+    ? `<span class="loader"></span>${msg}`
+    : msg;
+  document.getElementById('toast-dock').appendChild(t);
+  setTimeout(()=>{ t.style.opacity='0'; setTimeout(()=>t.remove(), 300); }, 3200);
+}
+
+document.querySelectorAll('#provider-switch button').forEach(b=>{
+  b.onclick = () => {
+    document.querySelectorAll('#provider-switch button').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');
+    state.provider = b.dataset.p;
+    toast(`Provider: ${b.dataset.p}`,'info');
+  };
+});
+
+// ──────────────────────────────────────────────────────────
+// ROAD / BUILDING analysis mode toggle
+// ──────────────────────────────────────────────────────────
+function setAnalysisMode(mode) {
+  state.analysisMode = mode;
+  document.querySelectorAll('#analysis-mode-switch button').forEach(b => {
+    b.classList.toggle('on', b.dataset.am === mode);
+  });
+
+  // Swap the upload button label + show/hide road-specific buttons
+  const btnCampus = document.getElementById('btn-campus');
+  const uploadLabel = document.getElementById('btn-upload-label');
+  if (mode === 'building') {
+    if (btnCampus) btnCampus.style.display = 'none';
+    if (uploadLabel) uploadLabel.textContent = 'Upload Building';
+  } else {
+    if (btnCampus) btnCampus.style.display = '';
+    if (uploadLabel) uploadLabel.textContent = 'Upload Pavement';
+  }
+
+  // Hide empty-state panel text that's road-specific; keep the panel structure
+  const empty = document.getElementById('empty-state');
+  if (empty) {
+    const h3 = empty.querySelector('h3');
+    const p  = empty.querySelector('p');
+    if (mode === 'building') {
+      if (h3) h3.textContent = 'Building Analysis mode';
+      if (p)  p.innerHTML = '<b style="color:var(--cyan)">Click anywhere on the map</b> to run the abandoned-building detector on that satellite tile, or use <b style="color:var(--amber)">Upload Building</b> for a close-up photo. Model: YOLOv8m trained on xBD disaster imagery (2 classes: normal / abandoned).';
+    } else {
+      if (h3) h3.textContent = 'Two modes';
+      if (p)  p.innerHTML = '<b style="color:var(--cyan)">Satellite mode</b> (map click / draw region) classifies land cover — road, building, vegetation, bare ground — using colour and texture heuristics. <i>It does not detect damage.</i><br><br><b style="color:var(--amber)">Pavement mode</b> (Upload Pavement button) runs your trained <b>STCrackNet</b> on close-up road photos — this is where real crack detection happens (F1 0.72).';
+    }
+  }
+
+  // Clear any current result so we don't show road data while in building mode
+  state.currentResult = null;
+  if (empty) empty.style.display = '';
+  const rv = document.getElementById('result-view');
+  if (rv) rv.style.display = 'none';
+
+  toast(`${mode === 'building' ? 'BUILDING' : 'ROAD'} analysis mode`, 'info');
+}
+
+document.querySelectorAll('#analysis-mode-switch button').forEach(b => {
+  b.onclick = () => setAnalysisMode(b.dataset.am);
+});
+
+document.getElementById('btn-analyze').onclick = () => {
+  if(state.mode === 'region'){
+    toast('Draw a rectangle on the map first','info');
+    return;
+  }
+  const c = map.getCenter();
+  runPointAnalysis(c.lat, c.lng);
+};
+
+(async ()=>{
+  try{
+    const past = await apiGet('/api/history?limit=20');
+    past.forEach(r => {
+      addMarker(r);
+      state.analyses.push(r);
+    });
+    renderHistory();
+    renderSummary();
+  } catch(e){ }
+})();
+</script>
+</body>
+</html>

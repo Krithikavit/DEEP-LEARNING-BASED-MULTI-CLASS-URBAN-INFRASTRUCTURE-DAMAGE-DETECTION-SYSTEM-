@@ -1,0 +1,167 @@
+{
+  "campus": "VIT Vellore",
+  "center": { "lat": 12.9692, "lon": 79.1568 },
+  "default_zoom": 17,
+  "photos": [
+    {
+      "id": "road1",
+      "filename": "road1.jpg",
+      "location": "Near Library (infront of KC Lawn)",
+      "lat": 12.96915,
+      "lon": 79.15758,
+      "expected_severity": "NORMAL"
+    },
+    {
+      "id": "road2",
+      "filename": "road2.jpg",
+      "location": "Infront of Library (Venky Avenue / King Road)",
+      "lat": 12.96920,
+      "lon": 79.15686,
+      "expected_severity": "MINOR"
+    },
+    {
+      "id": "road3",
+      "filename": "road3.jpg",
+      "location": "End of Library",
+      "lat": 12.96966,
+      "lon": 79.15662,
+      "expected_severity": "NORMAL"
+    },
+    {
+      "id": "road4",
+      "filename": "road4.jpg",
+      "location": "End of Library",
+      "lat": 12.96976,
+      "lon": 79.15648,
+      "expected_severity": "MINOR"
+    },
+    {
+      "id": "road5",
+      "filename": "road5.jpg",
+      "location": "Side of Library (Apples)",
+      "lat": 12.96988,
+      "lon": 79.15704,
+      "expected_severity": "MODERATE"
+    },
+    {
+      "id": "road6",
+      "filename": "road6.jpg",
+      "location": "Side of Library (Apples)",
+      "lat": 12.96996,
+      "lon": 79.15712,
+      "expected_severity": "MINOR"
+    },
+    {
+      "id": "road7",
+      "filename": "road7.jpg",
+      "location": "Side of Library (Apples)",
+      "lat": 12.97005,
+      "lon": 79.15720,
+      "expected_severity": "MODERATE"
+    },
+    {
+      "id": "road8",
+      "filename": "road8.jpg",
+      "location": "End of Library (Apples)",
+      "lat": 12.97014,
+      "lon": 79.15726,
+      "expected_severity": "SEVERE"
+    },
+    {
+      "id": "road9",
+      "filename": "road9.jpg",
+      "location": "Back of Library",
+      "lat": 12.96940,
+      "lon": 79.15720,
+      "expected_severity": "MINOR"
+    },
+    {
+      "id": "road10",
+      "filename": "road10.jpg",
+      "location": "Before Basketball Court (Fleming Road)",
+      "lat": 12.97150,
+      "lon": 79.15760,
+      "expected_severity": "MODERATE"
+    },
+    {
+      "id": "road11",
+      "filename": "road11.jpg",
+      "location": "Main Block Right",
+      "lat": 12.96937,
+      "lon": 79.15612,
+      "expected_severity": "MINOR"
+    },
+    {
+      "id": "road12",
+      "filename": "road12.jpg",
+      "location": "Infront of Hospital Block",
+      "lat": 12.97340,
+      "lon": 79.15950,
+      "expected_severity": "NORMAL"
+    },
+    {
+      "id": "road13",
+      "filename": "road13.jpg",
+      "location": "Back of Hospital Block",
+      "lat": 12.97380,
+      "lon": 79.15970,
+      "expected_severity": "MINOR"
+    },
+    {
+      "id": "road14",
+      "filename": "road14.jpg",
+      "location": "Hostel infront of Hospital Block",
+      "lat": 12.97410,
+      "lon": 79.15985,
+      "expected_severity": "MINOR"
+    },
+    {
+      "id": "road15",
+      "filename": "road15.jpg",
+      "location": "2A Gate",
+      "lat": 12.97062,
+      "lon": 79.15460,
+      "expected_severity": "MODERATE"
+    },
+    {
+      "id": "road16",
+      "filename": "road16.jpg",
+      "location": "2A Gate near Parking Zone",
+      "lat": 12.97068,
+      "lon": 79.15440,
+      "expected_severity": "MODERATE"
+    },
+    {
+      "id": "road17",
+      "filename": "road17.jpg",
+      "location": "Infront of SMV Building",
+      "lat": 12.96930,
+      "lon": 79.15780,
+      "expected_severity": "MINOR"
+    },
+    {
+      "id": "road18",
+      "filename": "road18.jpg",
+      "location": "Infront of SMV Building",
+      "lat": 12.96938,
+      "lon": 79.15772,
+      "expected_severity": "MINOR"
+    },
+    {
+      "id": "road19",
+      "filename": "road19.jpg",
+      "location": "Infront of Lake Front Foodys",
+      "lat": 12.97268,
+      "lon": 79.15695,
+      "expected_severity": "SEVERE"
+    },
+    {
+      "id": "road20",
+      "filename": "road20.jpg",
+      "location": "Infront of TT (Technology Tower)",
+      "lat": 12.97078,
+      "lon": 79.15950,
+      "expected_severity": "MODERATE"
+    }
+  ]
+}
