@@ -1,4 +1,4 @@
-# RoadSense — Windows + VS Code setup
+# Urban degradation detection 
 
 Smart Road Damage Monitoring dashboard powered by your trained **STCrackNet**
 (F1 0.7199, IoU 0.5624) plus a satellite-imagery analysis pipeline.
